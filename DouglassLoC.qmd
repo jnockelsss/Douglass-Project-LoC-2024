@@ -4,15 +4,15 @@ format: pdf
 editor: visual
 ---
 
-## "Leveraging Accurate and Accessible Texts at the Library of Congress. A Study of Frederick Douglass’s Autobiographical Writing (1845 - 1895)"
+## "How Automated Transcription Opens Autobiographical Research, A Study of Frederick Douglass (1845 - 1895) at the Library of Congress."
 
-In displaying how Automated Text Recognition (ATR) transcriptions can open up digital scholarship, through text analysis, this Quarto document allows for reproducible and reusable research through R scripting. The processes of importing transcription data, pre-processing, exploration, modelling and reporting are shown. The necessity for blending ATR approaches with R is demonstrated with the below figure, highlighting the high error rate in using rudimentary OCR in providing accurate textual data sets to be interrogated against.
+This chapter demonstrates how Automated Text Recognition (ATR) transcriptions open up digital scholarship. In this work, we use ATR transcriptions as a base for R-scripted text analysis on the travel diary (1886-1887) of abolitionist and social campaigner Frederick Douglass (1818-1895): against his wider biography and that of his second wife, Helen Pitts Douglass (1838 - 1903). The latter painstakingly transcribed by various scholarly editing projects.
 
-![ Figure 1, OCR confidence levels on Douglass Travel Diary (1886-1887)](figures/OCR Error/TesseractCon_LTFD_01.png)
+This Quarto document, written within R Studio, allows for reproducible and reusable text analysis research of Douglass's autobiography. It showcases the processes taken in importing transcription data; pre-processing text, data exploration, modelling, in addition to reporting findings. To begin, the below *figure one* demonstrates the necessity for ATR approaches to transcription work. The redder the square, the less confident the OCR (Tesseract), a precursor to ATR systems, is in recognising the isolated character. Of course, this remains a guide: as Tesseract can register confidence and still return an incorrect output, and likewise return a less confident result whilst providing more accurate data. Nonetheless, *figure one* highlights a high error rate in using OCR to provide accurate textual data to be interrogated against for historical research. By contrast, our Transkribus model (Late Douglass (1886-1887)) trained on the same travel diary returned a 90.6% character accuracy rate.
 
-In term of object names in the below code, each refers to an autobiographical work of the social campaigner and abolitionist Frederick Douglass (1818 - 1895), NLFD: Narrative Life of Frederick Douglass (1845); MBMF: My Bondage, My Freedom (1855), LTFD: Life and Times of Frederick Douglass (1881), DD: Douglass Diary (1886 - 1894). The first two chronological objects were pulled from Project Gutenberg, LTFD was uploaded as a .rtf file, DD being automatically transcribed and manually corrected using the ATR platform Transkribus and then uploaded as separated .txt files.
+![**Figure One**, OCR confidence levels on Douglass travel diary (1886-1887)](figures/OCR Error/DD_TesseractCon.png)
 
-## General
+Each object name in the below code refers to one of Douglass's autobiographical works: NLFD \[Narrative Life of Frederick Douglass\] (1845); MBMF \[My Bondage and My Freedom\] (1855), LTFD \[Life and Times of Frederick Douglass\] (1881), DD \[Douglass Diary\] (1886 - 1887). The first two chronological objects were pulled from Project Gutenberg, LTFD was uploaded as a .rtf file (due to the use of Mac OS), DD was reached through automated transcription using the ATR platform Transkribus and then uploaded as separated .txt files. The resulted DD transcription was later matched against Emerson (2003), a critical scholarly edition. The decision to remain transcribing the original manuscript within Transkribus was taken as to enrich the transcription using named entity recognition (NER), as well as provide the Library of Congress with a searchable resource.
 
 ```{r}
 getwd()
@@ -21,34 +21,52 @@ setwd("~/Documents/Douglass2024/dataraw")
 
 # Word Frequencies and Lexical Diversity
 
-What similarities and constrasts can we gleam from Douglass's autobiographical writing, now that we have an accessible transcription of his Travel Diary? How did Douglass's writing develop? This section explores such themes.
+With accessible transcription of Douglass's diary, we demonstrate the evolution of his writing style. We also show the most important words used, in relation to the rest of his writing career; as well as the similarities and contrasts between his lexical choices.
+
+***1 warning***
 
 ```{r}
-# packages #
+
+############# Word Frequency Use Across Douglass Autobiography ##############
+
+# uploading packages and set working directory #
 
 library(readtext)
 library(gutenbergr)
 library(tidyverse)
 library(tidytext)
-library(tm)
 library(scales)
+library(forcats)
+library(ggplot)
+library(tm)
 
-# upload Douglass's wider biography from Project Gutenberg and convert into tidytext format #
+# upload biographies and convert to tidytext format, count word instances and take mean usage #
 
 NLFD.v <- gutenberg_download(23)
 tidy_NLFD <- NLFD.v %>%
   unnest_tokens(word, text) %>%
-  anti_join(stop_words)
-
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  rename(word_count = n)
+mean_wf <- mean(tidy_NLFD$word_count)
+  
 MBMF.v <- gutenberg_download(202)
 tidy_MBMF <- MBMF.v %>%
   unnest_tokens(word, text) %>%
-  anti_join(stop_words)
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  rename(word_count = n)
+mean_wf <- mean(tidy_MBMF$word_count)
 
 LTFD.v <- readtext("/Users/joenockels/Documents/Douglass2024/dataraw/LTFD.rtf")
-tidy_LTFD <- unnest_tokens(LTFD.v, word, text)
+tidy_LTFD <- LTFD.v %>%
+  unnest_tokens(word, text) 
 data("stop_words")
 tidy_LTFD <- anti_join(tidy_LTFD, stop_words)
+tidy_LTFD <- tidy_LTFD %>% 
+  count(word, sort = TRUE) %>%
+  rename(word_count = n)
+mean_wf <- mean(tidy_LTFD$word_count)
 
 # upload Douglass's diary and pre-process in tm() package #
 
@@ -63,20 +81,11 @@ DD.v <-
   DD.dtm <- DocumentTermMatrix(DD.v)
   tidy_DD <- tidy(DD.dtm)
   tidy_DD <- tidy_DD %>%
-    rename(word = term)
-head(tidy_DD)
-
-# basic word freqs for lexical diversity # TBC
-
-freq <- colSums(as.matrix(DD.dtm))
-freq[1:10]
-freq_dec <- sort(freq, decreasing = TRUE)
-freq_dec[1:20]
-library(wordcloud2)
-matrix <- as.matrix(DD.dtm)
-words <- sort(colSums(matrix), decreasing = TRUE)
-df <- data.frame(word = names(words), freq = words)
-wordcloud2(data = df, size = 0.5)
+    rename(word = term) %>%
+    rename(total = count) %>%
+    rename(word_count = total) %>%
+    select(-document)
+mean_wf <- mean(tidy_DD$word_count)
 
 # calculate the similarity of word freqs across the range of works #
 
@@ -90,7 +99,8 @@ frequency <- bind_rows(mutate(tidy_NLFD, work = "Narrative Life (1845)"),
     mutate(proportion = count / sum(count)) %>%
     ungroup() %>%
     pivot_wider(names_from = work, values_from = proportion) %>%
-    pivot_longer(`Narrative Life (1845)`:`My Bondage (1855)`:`Life and    Times (1881)`, names_to = "work", values_to = "proportion")
+    pivot_longer(`Narrative Life (1845)`:`My Bondage (1855)`:`Life and Times (1881)`,
+                 names_to = "work", values_to = "proportion")
 
 # visualise #
 
@@ -105,173 +115,371 @@ ggplot(frequency, aes(x = proportion, y = `Travel Diary`,
   theme(legend.position="none") +
   labs(y = "Travel Diary (1886-1887)", x = NULL)
 
+# correlate results as a means of verifying figure two, repeat across biography #
 
+# warning - standard deviation is zero ??? #
+
+cor.test(data = frequency[frequency$work == "Narrative Life (1845)",],
+         ~ proportion + `Travel Diary`)
 ```
 
-![Word freq similarity between Travel Diary (1886-1887) and Douglass biographies, the further the points amass around the line - the greater the similarity](figures/Word Frequencies/Rplot01.png)\
-Figure Two, Word frequency similarity between Douglass's diary and wider autobiography, the closer each point (word token) appears to the line - the greater the similarity.
+![](figures/Word%20Frequencies/Douglass_similarity_wf%20(Corrected).jpg)
+
+**Figure Two**, Word frequency similarity between Douglass's diary and wider autobiography, the closer each point (word token) appears to the line - the greater the similarity.
 
 ```{r}
 
-# correlate results as a means of verifying visual #
+# hapax correlation #
 
-cor.test(data = frequency[frequency$work == "Life and Times (1881)",],
-         ~ proportion + `Travel Diary`)
+# calculate length of each biography #
 
-# hapax correlation # TBC
+total_words <- function(text) {
+  words <- strsplit(text, "\\s+")[[1]]
+  return(length(words))
+}
 
-autobiography.v <- c(DD.v, MBMF.v, NLFD.v)
-novel.hapax.v <- lapply(autobiography.v, function(x), sum(x == 1))
-novel.lengths.m <- do.call(rbind, lapply(autobiography.v, sum))
-hapax.percentage <- novel.hapax.v / novel.lengths.m
-hapax.percentge[order(hapax.percentage, decreasing = TRUE),]
-barplot(hapax.percentage, beside = T, col = "grey")
-        main = "Hapax across Douglass autobiographical writing"
-        names.arg = c("DD", "MBMF", "NLFD")
-# length of shorter DD impact hapax?
-lengths.hapax.v <- cbind(novel.hapax.v, novel.lengths.m)
-cor(lengths.hapax.v[, 1:3], lengths.hapax.v [, 4])
+total_words_NLFD <- sum(sapply(NLFD.v$text, total_words))
+total_words_MBMF <- sum(sapply(MBMF.v$text, total_words))
+total_words_LTFD <- sum(sapply(LTFD.v$text, total_words))
+total_words_DD <- sum(sapply(DD.v, total_words))
 
-hapax_correlation <- cor(novel.hapax.v, novel.lengths.m)
+# calculate hapax across autobiography, instances where words appear only once #
 
-# inverse wf to provide more weighting to less common terms # TBC
+douglass.raws.l <- list(tidy_NLFD, tidy_MBMF, tidy_LTFD, tidy_DD)
+douglass.hapax.v <- sapply(douglass.raws.l, function(x) sum(x == 1))
 
-autobiography_tf_idf <- autobiography.v %>%
-  bind_tf_idf(word, work, n)
+# divide by autobiographical writing length #
+  
+douglass.book.lengths.l <- list(total_words_NLFD, total_words_MBMF, total_words_LTFD, 
+                                total_words_DD)
+douglass.hapax.v <- as.numeric(douglass.hapax.v)
+douglass.book.lengths.l <- as.numeric(douglass.book.lengths.l)
 
-autobiography_tf_idf %>%
-  group_by(work) %>%
-  slice_max(tf_idf, n = 15) %>%
+hapax.percentage <- douglass.hapax.v / douglass.book.lengths.l * 100
+
+# visualise hapax percentage #
+
+douglass.book.names.v <- c("NLFD", "MBMF", "LTFD", "DD")
+hapax_data <- data.frame(Book = douglass.book.names.v,
+                         Hapax_Percentage = hapax.percentage)
+
+ggplot(hapax_data, aes(x = Book, y = Hapax_Percentage)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  geom_text(aes(label = sprintf("%.1f%%", Hapax_Percentage)),
+            vjust = -0.5, size = 3) + # Add percentage labels
+  labs(title = "Percentage of Hapax Words in Autobiographies",
+       x = "Autobiography", y = "Percentage of Hapax Words") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+![](figures/Word%20Frequencies/Douglass_hapax.jpg){fig-alt="Figure Three, graph of hapax percentage across Douglass's autobiographical writing - DD has abnormally high hapax"}
+
+**Figure Three**, Hapax percentage across Douglass's autobiographical writing
+
+***2 errors/warnings***
+
+```{r}
+
+# calculate word frequency within tidy text format #
+
+text_list <- list(NLFD = tidy_NLFD,
+                  MBMF = tidy_MBMF,
+                  LTFD = tidy_LTFD,
+                  DD = tidy_DD)
+
+douglass_words.l <- lapply(douglass.raws.l, function(df) df$word)
+douglass_wf.l <- lapply(douglass.raws.l, function(df) df$word_count)
+douglass_wf.df <- tibble(
+  words = unlist(douglass_words.l),
+  frequency = unlist(douglass_wf.l),
+  text = rep(names(text_list), sapply(douglass_words.l, length))
+)
+total <- douglass_wf.df %>%
+  group_by(text) %>%
+  summarize(total = sum(frequency))
+douglass_wf.df <- left_join(douglass_wf.df, total)
+douglass_wf.df <- douglass_wf.df %>%
+  select(text, everything())
+
+# visualise word frequency distribution #
+
+ggplot(douglass_wf.df, aes(frequency/total, fill = text)) +
+  geom_histogram(show.legend = FALSE) +
+  xlim(NA, 0.0009) +
+  facet_wrap(~text, ncol = 2, scales = "free_y") +
+  labs(title = "Douglass Biography Term Frequency Distribution",
+       x = "Count / Total", y = "Count")
+
+# visualise word rank by frequency, frequency usually inverse of rank #
+
+freq_by_rank <- douglass_wf.df %>% 
+  group_by(text) %>% 
+  mutate(rank = row_number(), 
+         term_frequency = frequency/total) %>%
+  ungroup()
+
+freq_by_rank %>% 
+  ggplot(aes(rank, term_frequency, color = text)) + 
+  geom_line(linewidth = 1.1, alpha = 0.8, show.legend = FALSE) + 
+  scale_x_log10() +
+  scale_y_log10()
+
+rank_subset <- freq_by_rank %>% 
+  filter(rank < 500,
+         rank > 10)
+lm(log10(term_frequency) ~ log10(rank), data = rank_subset)
+
+# calculate word frequency, then inverse word frequency, for Douglass autobiographical writing #
+
+douglass_tf <- douglass_wf.df %>%
+  unnest_tokens(word, words) %>%
+  count(text, word) %>%
+  group_by(text) %>%
+  mutate(tf = n / sum(n))
+
+douglass_idf <- douglass_tf %>%
+  group_by(word) %>%
+  summarize(idf = log(n_distinct(text) + 1 / nrow(douglass_tf) + 1)) 
+
+# had to add laplace smoothing to return a positive result, error ??? #
+
+douglass_tf_idf <- douglass_tf %>%
+  left_join(douglass_idf, by = "word") %>%
+  mutate(tf_idf = tf * idf)
+
+print(douglass_idf)
+
+# visualise high tf-idf terms 
+
+high_tf_idf_results <- douglass_tf_idf %>%
+  arrange(desc(tf_idf))
+
+print(high_tf_idf_results)
+
+# error, DD results appear clearly (but ordered DESC alphabetically and not by count) ??? #
+
+douglass_tf_idf %>%
+  group_by(text) %>%
+  slice_max(tf_idf, n = 20) %>%
   ungroup() %>%
-  ggplot(aes(tf_idf, fct_reorder(word, tf_idf), fill = work)) +
+  ggplot(aes(tf_idf, fct_reorder(word, tf_idf), fill = text)) +
   geom_col(show.legend = FALSE) +
-  facet_wrap(~work, ncol = 2, scales = "free") +
+  facet_wrap(~text, ncol = 2, scales = "free") +
   labs(x = "tf-idf", y = NULL)
 ```
 
+![**Figure Four**, facetted line graph Douglass's word frequency distribution](figures/Word Frequencies/Douglass_wf_distribution.png){fig-alt="Figure Four, facetted line graph showing a similar downward trend of word frequency distribution, suggesting a similar lexical pattern across Douglass's autobiographical writing"}
+
 ## Word Dispersion
 
-Prevailing scholarship (Martin, 1984: 175-176; 180) suggests Douglass in the 1850s-1860s placed God "off the stage", shifting from a powerful belief of divine determinism in human affairs to a more radical philosophy of social reform and religious liberalism. Nonetheless, as Williams (2002: 143-145) critiques Martin's (1984) assertion that for Douglass abolition superseded religion, a product Williams suggests of Martin's intellectual biography flattening Douglass as subject without needed narrative analysis. Instead, Williams (2022: 9) states, “Douglass was a Christian. His commitment to the institution of the church waned over time, but he maintained an abiding belief in the bedrock Christian story.” What occurred in Douglass's spiritual journey, was perhaps the development of more intrinsic faith: internalising his religious motive opposed to using it as a public justification for abolition (Allport, 1967; Williams, 2022: 5). As such, these findings must be measured against his complex biography. Nonetheless, is this shift to a more liberal religion indicated in relative wf data? Does Douglass no longer mention God explicitly? Or do these mentions decline in relation to words associated with humanism and liberalism? The inclusion of the later DD provides yet more data to measure these conclusions against.
-
-Stewart (2017: 214-215) also suggests that, beginning in 1865, Douglass’s political philosophy moved away from the need for federal action to advocating more of a laissez-faire policy toward the African American community. Are there more occurences of words connoting interventionist policy in NLFD/MBMF opposed to LTFD/DD?
+Prevailing scholarship (Martin, 1984: 175-176; 180) suggests Douglass, in the 1850s-1860s, placed God "off the stage": shifting from a powerful belief of divine determinism in human affairs to a more radical philosophy of social reform and religious liberalism. That said, as Williams (2002: 143-145) suggests in his critique of Martin's (1984) assertion that for Douglass abolition superseded religion, such intellectual biography flattens the campaigner as subject without necessary narrative analysis. Instead, Williams (2022: 9) states, “Douglass was a Christian. His commitment to the institution of the church waned over time, but he maintained an abiding belief in the bedrock Christian story.” What occurred in Douglass's spiritual journey was perhaps the development of a more intrinsic faith: internalising his religious motive opposed to using it as a public justification for abolition (Allport, 1967; Williams, 2022: 5). As such, text analysis findings concerning the presence and context of religious language in Douglass's autobiography must be measured against his complex theology and narrative. Nonetheless, is this shift to a more liberal religion indicated in relative wf data? Does Douglass no longer mention God explicitly? Or do these mentions decline in relation to words associated with humanism and liberalism? The inclusion of the later DD provides yet more data to measure these conclusions against: a key later dataset for such analysis.
 
 ```{r}
 
-# TBC 
+# repeat for each autobiographical writing #
+# upload autobiographical writing, pre-process (remove metadata etc.) and list #
 
-# split autobiographical works into chapter positions #
+NLFD.v <- gutenberg_download(23)
+view(NLFD.v)
+NLFD.v <- unlist(NLFD.v$text)
+start.v <- which(NLFD.v == " CHAPTER I")
+end.v <- which(NLFD.v == "the sacred cause,—I subscribe myself,")
+start.metadata.v <- NLFD.v[1:start.v -1]
+end.metadata.v <- NLFD.v[(end.v+1):length(NLFD.v)]
+metadata.v <- c(start.metadata.v, end.metadata.v)
+novel.lines.v <- NLFD.v[start.v:end.v]
 
-NLFD.v <- file.names.v[[1]]
-start.v <- which(NLFD.v == "CHAPTER 1")
-end.v <- which(NLF.v == "I subscribe myself")
-novel.lines.v <- NLFD.v[start.v: end.v]
-novel.lines.v <- unlist(novel.lines.v)
-chap.positions.v <- grep("^CHAPTER \\d", novel.lines.v)
-last.position.v <- length(novel.lines.v)
-chap.positions.v <- c(chap.positions.v, last.position.v)
-# convert to table of character vectors per chapter
-NLFD.raws.l <- list()
-for(i in 1: length(chap.positions.v)) {
-  if (i!=length(chap.positions.v)) {
-    chapter.title <- novel.lines.v[chap.positions.v[i]]
-    start <- chap.positions.v [i] + 1
-    end <- chap.positions.v [i + 1] - 1
-    chapter.lines.v <- novel.lines.v[start:end]
-    chapter.words.v <- tolower(paste(chapter.lines.v, 
-                                     collapse = ""))
-    chapter.words.l <- strsplit(chapter.words.v, "\\w")
-    chapter.words.v <- unlist(chapter.words.l)
-    chapter.words.v <- chapter.words.v[which
-                                       (chapter.words.v!= "")]
-    chapter.freqs.t <- table(chapter.words.v)
-    NLFD.raws.l[[chapter.title]] <- chapter.freqs.t
+novel.v <- paste(novel.lines.v, collapse = " ")
+novel.v <- tolower(novel.v)
+NLFD.words.l <- strsplit(novel.v, "\\W")
+NLFD.words.v <- unlist(NLFD.words.l)
+not.blank.v <- which(NLFD.words.v!="")
+NLFD.word.v <- NLFD.words.v[not.blank.v]
+
+DD.v <- Corpus(DirSource("~/Documents/Douglass2024/dataraw/DD"))
+writeLines(as.character(DD.v))
+combined_DD.v <- paste(unlist(DD.v), collapse = " ")
+print(combined_DD.v)
+DD.v <- gsub("\n", "", combined_DD.v)
+novel.lines.v <- DD.v
+novel.v <- paste(novel.lines.v, collapse = " ")
+novel.v <- tolower(novel.v)
+DD.words.l <- strsplit(novel.v, "\\W")
+DD.words.v <- unlist(DD.words.l)
+not.blank.v <- which(DD.words.v!="")
+DD.word.v <- DD.words.v[not.blank.v]
+
+# rudimentary comparison of religious/humanistic language per autobiography #
+
+NLFD.freqs.t <- table(NLFD.word.v)
+sorted.NLFD.freqs.t <- sort(NLFD.freqs.t, decreasing = TRUE)
+sorted.NLFD.freqs.t["god"]/sorted.NLFD.freqs.t["man"]
+
+DD.freqs.t <- table(DD.word.v)
+sorted.DD.freqs.t <- sort(DD.freqs.t, decreasing = TRUE)
+sorted.DD.freqs.t["god"]/sorted.DD.freqs.t["man"]
+
+# define dictionaries for religious and humanistic terms
+
+religious_terms <- c("god", "faith", "prayer", "spirit", "religious")
+humanistic_terms <- c("man", "men", "women", "(individual|individuals)", "(man|men|woman|women)")
+
+# create a function to calculate frequency of each dictionary
+
+calculate_word_dispersion <- function(DD.v, religious_terms, humanistic_terms) {
+  # create objects to store religious and humanistic word counts
+  religious_word_count <- rep(0, length(DD.v))
+  humanistic_word_count <- rep(0, length(DD.v))
+  # loop over each word in the autobiographical writing
+  for (i in seq_along(DD.v)) {
+    # check if the word is a religious term
+    if (DD.v[i] %in% religious_terms) {
+      religious_word_count[i] <- 1
+    }
+    # check if the word is a humanistic term
+    if (DD.v[i] %in% humanistic_terms) {
+      humanistic_word_count[i] <- 1
+    }
   }
+  # return a list containing religious and humanistic terms word counts
+  return(list(religious = religious_word_count, humanistic = humanistic_word_count))
 }
 
-# first measure the occurences of religious words per autobiography #
+# call above function with autobiographical writing and dictionaries
+word_dispersion <- calculate_word_dispersion(DD.word.v, religious_terms, humanistic_terms)
+religious_word_count <- word_dispersion$religious
+humanistic_word_count <- word_dispersion$humanistic
 
-religion.v <- length(NLFD.v[NLFD.v == "God", "prayer", "religion", "church"])
-total.words.v <- length(religion.v)
-religion.v / total.words.v
-
-NLFD.chapter.rel.freqs.t <- 100*(NLFD.chapter.freqs.t/sum(NLFD.chapter.freqs.t))
-NLFD.chapter.freqs.l[[chapter.title]] <- NLFD.chapter.rel.freqs.
-# how often is God mentioned per 100 words
-sorted.NLFD.rel.freqs.t <- 100*(sorted.NLFD.freqs.t/sum(sorted.DD.freqs.t))
-sorted.NLFD.rel.freqs.t["god"]
-
-# repeat for each autobiography
-
-faith.l <- lapply(c(NLFD.chapter.freqs.l, MBMF.chapter.freqs.l, LTFD.chapter.freqs.l, DD.freqs.l, '[', 'God')
-faith.m <- do.call(rbind, faith.l)
-faith.v <- faith.m[, 1]
-plot_data <- data.frame(chapter = names(faith.v), frequency = faith.v)
-ggplot(plot_data, aes(x = chapter, y = frequency, fill = chapter)) +
-  geom_bar(stat = "identity") +
-  labs(title = "Frequency of 'God' in Douglass Autobiography") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  facet_wrap(~chapter, scales = "free")
-
-# create humanism.v vector
-
-humanism.v <- which(NLFD.v == "science", "human", "abolition")
-humanism.count.v <- rep(NA, length(n.time.v))
-humanism.count.v[humanism.v] <- 1
-humanism.v <- lapply(NLFD.freqs.l, '[', 'humanism')
-humanism.m <- do.call(rbind, humanism.l)
-humanism.v <- humanism.m, [, 1]
-
-# map 'god' versus 'human' across Douglass autobiography using dispersion plot
-
-n.time.v <- seq(1:length(autobiography.v))
-god.v <- which(autobiography.v == "god")
-g.count.v <- rep(NA,length(n.time.v))
-g.count.v[god.v] <- 1
-plot(w.count.v, main="Dispersion Plot of 'god' in Douglass Autobiography",
-     xlab="Novel Time (words)", ylab="god mentions", type="h", ylim=c(0,1), yaxt='n')
-
-man.v <- which(autobiography.v == "man")
-m.count.v <- rep(NA,length(n.time.v))
-m.count.v[man.v] <- 1
-plot(a.count.v, main="Dispersion Plot of 'man' in Douglass Autobiography",
-     xlab="Novel Time (words)", ylab="human mentions", type="h", ylim=c(0,1), yaxt='n')
-
-god.human.m <- cbind(god.v, man.v)
-dim(god.man.m)
-colnames(god.man.m) <- c("god", "man")
-barplot(god.man.m, beside=T, col="grey")
-
-# correlate religious to humanism words using a randomised sample from df "faith" column against unrandomised "humanism" column, loop to iterate 10000 x and place into empty variable
-
-belief.m <- cbind (humanism.v, faith.v)
-dim(belief.m)
-colnames(belief.m) <- c("god","humanism")
-belief.m [which(is.na(belief.m))]
-cor(belief.m)
-cor.data.df <- as.data.frame(belief.m)
-mycors.v <- NULLfor(i in 1:1000) {
-  mycors.v <- c(mycors.v, cor(
-    sample(cor.data.df$faith), 
-    cor.data.df$science))
-}
-mean(mycors.v)
-
-# visualise #
-
-h <- hist(mycors.v, breaks=100, col="grey", 
-          xlab="Correlation Between Faith and Humanism",
-          main="Randomised Correlation Coefficients",
-          plot=T) 
-xfit <- seq(min(mycors.v),max(mycors.v),length=1000)
-yfit <- dnorm(xfit,mean=mean(mycors.v),sd=sd(mycors.v))
-yfit <- yfit*diff(h$mids[1:2])*length(mycors.v)
-lines(xfit, yfit, col="black", lwd=2)
+# visualize word dispersion
+plot(religious_word_count, main="DD (1886-1887) Word Dispersion",
+     xlab="Narrative Position (Words)", ylab="Religious - Humanistic Word Presence", type="h", ylim=c(0,1), col="#B59410", yaxt="n")
+lines(humanistic_word_count, col="#367588")
+legend("topright", legend=c("Religious", "Humanistic"), col=c("#B59410", "#367588"), lty=1, 
+       inset=c(0, 0.05), xpd=TRUE)
 ```
+
+![**Figure Five**, Douglass Diary (1886-1887) Word Dispersion of Religious - Humanistic Language](figures/DD_Word_Dispersion.png)
+
+```{r}
+# calculate total count of religious and humanistic words #
+
+total_religious_words <- sum(religious_word_count)
+total_humanistic_words <- sum(humanistic_word_count)
+
+# correlate religious to humanistic words, loop to iterate 10000 x and place into empty variable #
+                  
+belief.m <- cbind(religious_word_count, humanistic_word_count)
+colnames(belief.m) <- c("religion", "humanism")
+missing_values <- belief.m[which(is.na(belief.m))]
+if (length(missing_values) > 0) {
+}
+
+correlation.m <- cor(belief.m)
+correlation.df <- as.data.frame(correlation.m)
+# generate randomised correlation coefficients #
+mycors.v <- NULL
+for (i in 1:1000) {
+  mycors.v <- c(mycors.v, cor(sample(correlation.df$religion), correlation.df$humanism))
+}
+# calculate the mean of the randomised correlation coefficients #
+mean_correlation <- mean(mycors.v)
+
+# visualise correlation results across entire Douglass biography #
+
+douglass_correlation.df <- data.frame(
+  Label = c("NLFD", "MBMF", "LTFD", "DD"),
+  Correlation = c(-0.00245, -0.00277, -0.00226, -0.00164),
+  Randomised_Correlation = c(0.0599, 0.032, -0.00399, -0.05200))
+
+data_long <- gather(douglass_correlation.df, key = "Correlation_Type", value = "Value", -Label)
+
+ggplot(data_long, aes(x = Label, y = Value, color = Correlation_Type)) +
+  geom_point(size = 3) +
+  labs(title = "Religious - Humanistic Language Correlation",
+       x = "Autobiographical Work",
+       y = "Correlation Value",
+       color = "Correlation Type") +
+  scale_color_manual(values = c("Correlation" = "#367588", "Randomised_Correlation" = "#B59410")) +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5)) +
+  theme(plot.title = element_text(size = 15))
+```
+
+![**Figure Six**, Initial and Randomised Pearson Product-moment Correlation of Religious - Humanistic Language Per Autobiographical Work](figures/Douglass_Correlation.png){fig-alt="Figure Six, Shows little dependence between religious - humanistic language, although a slight trend (religious language increases, humanistic decreases) in randomised correlation"}
+
+DD corpus separated into bigrams to account for context surrounding the use of religious language, not basing analysis merely on simple word counts.
+
+```{r}
+DD <- VCorpus(DirSource("~/Documents/Douglass2024/dataraw/DD"))
+
+DD <- DD %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(removeNumbers) %>%
+  tm_map(stripWhitespace) %>%
+  tm_map(removeWords, stopwords("en"))
+
+DD_dtm <- DocumentTermMatrix(DD)
+tidy_DD <- tidy(DD_dtm)
+tidy_DD <- tidy_DD %>%
+  rename(word = term) %>%
+  rename(total = count) %>%
+  mutate(word = as.character(word))
+
+# function to count bigrams #
+
+count_bigrams <- function(dataset) {
+  dataset %>%
+    filter(!word %in% stopwords("en")) %>%
+    mutate(next_word = lead(word)) %>%
+    filter(!is.na(next_word)) %>%
+    unite(bigram, word, next_word, sep = " ") %>%
+    count(bigram, sort = TRUE)
+}
+
+# function to visualise bigrams #
+
+visualize_bigrams <- function(bigrams) {
+  bigrams %>%
+    graph_from_data_frame(directed = TRUE) %>%
+    ggraph(layout = "fr") +
+    geom_edge_link(aes(edge_alpha = n), show.legend = TRUE, arrow = arrow(length = unit(0.1, "inches"))) +
+    geom_node_point(color = "lightblue", size = 3) +
+    geom_node_text(aes(label = name), vjust = 1, hjust = 1, size = 2) + 
+    theme_void() +
+    theme(plot.margin = margin(1, 1, 1, 1, "cm"))
+}
+
+# generate bigrams #
+
+DD_bigrams <- count_bigrams(tidy_DD)
+head(DD_bigrams)
+
+DD_bigrams_separated <- DD_bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+# return bigrams that co-occur with "god" #
+
+DD_bigrams_separated %>%
+  filter(word1 == "god") %>%
+  count(word2, sort = TRUE)
+
+# visualise DD bigram networks #
+
+DD_bigrams_separated %>%
+  filter(n > 2,
+         !str_detect(word1, "\\d"),
+         !str_detect(word2, "\\d")) %>%
+  visualize_bigrams()
+```
+
+![**Figure Seven**, DD bigram networks visualised using Markov probability model based on proceeding words.](figures/DD_Bigrams.png){fig-alt="Graph showing relationships between pairs of words in DD. day | days the most prominent."}
 
 ## Sentiment Analysis
 
-Measure of Douglass's general impression in visiting the countries mentioned in DD, refer against a close reading of his intellectual biography.
+Measure of Douglass's general impression in visiting the countries mentioned in DD, refer against a close reading of his intellectual biography. This work is validated with the use of searching for tonal bigrams.
 
 ```{r}
 # packages # 
@@ -285,6 +493,7 @@ library(qdapDictionaries)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(textdata)
 
 # assigns GI_Dict (compatible for Quanteda) to text corpus #
 
@@ -337,11 +546,22 @@ doc_id          negative positive length sentiment1 sentiment2 subjectivity
 
 8 Voyage.txt            28       76   1357      0.462    0.0354        0.0766
 
+***3 errors***
+
 ```{r}
 
-# validation, finds terms of 'neutral' use and removes from dictionary, in the case 'much' ##
+# validation, finds terms of 'neutral' use and removes from sentiment dictionary #
 
-# error - current issue on textstat function #
+# utilised earlier bigrams to validate sentiment analysis, found that no negation_words had an impact on sentiment scores using AFINN #
+
+AFINN <- get_sentiments("afinn")
+negation_words <- c("not", "no", "never", "without")
+not_words <- DD_bigrams_separated %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word1, word2, value, sort = TRUE)
+
+# error - current issue on textstat function ??? #
 
 HL_dict <- dictionary(list(positive=positive.words, negative=negation.words))
 freqs = textstat_frequency(dtm)
@@ -352,7 +572,8 @@ HL_dict2 = dictionary(list(positive=positive.cleaned, negative=negation.words))
 freqs %>% as_tibble() %>% filter(feature %in% HL_dict$positive)
   
 # creates a browser of coded red and green sentiment words for DD #
-# error - issue with forming tcorpus #
+
+# error - issue with forming tcorpus ??? #
 
 library(corpustools)
 t <- create_tcorpus(corp)
@@ -363,7 +584,7 @@ browse_texts(t, scale = 'sentiment')
 
 # visualise in tidyverse # 
 
-# error - issue with inner-join #
+# error - issue with inner-join ??? #
 
 tidy_DD <- tidy(DD.dtm) %>%
   inner_join(get_sentiments("bing")),  %>%
@@ -391,8 +612,135 @@ plot(syuzhet_vector,
 ) 
 ```
 
-![Figure Three, Emotional valence of Douglass's 'City of Rome' Voyage in Travel Diary (1886-1887)](figures/Emotional Valence/Voyage - Emotional Valence.png)
+![**Figure Seven**, Emotional valence of Douglass's 'City of Rome' Voyage in Travel Diary (1886-1887)](figures/Emotional%20Valence/Voyage%20-%20Emotional%20Valence.png)
 
-\
-\
-\
+## Comparison to Helen Pitts Douglass Travel Diary (1886)
+
+Using Emerson's (2003) critical scholarly edition of Pitts Douglass's diary, this text was converted into computer-readable format within Transkribus (using a pre-trained print model). The transcription was then cleaned for errors, extraneous baselines and text (such as footnoted context). This code provides a comparative analysis of the diary against Frederick Douglass's, both in word choice and frequency, as well as sentiment. Pitts Douglass's diary only ventures as far as the voyage on the City of Rome, Ireland briefly and England; Frederick Douglass's text has therefore been truncated to offer a fair comparison. This diary is referred to as HP in the following code as object.\
+
+```{r}
+library(dplyr)
+library(tm)
+library(tidyr)
+library(tidytext)
+library(ggplot2)
+library(scales)
+library(tibble)
+library(quanteda)
+library(quanteda.textmodels)
+library(quanteda.textstats)
+library(quanteda.textplots)
+library(qdapDictionaries)
+
+# upload HP diary (converted in computer-readable format using Transkribus) #
+
+HP.v <- readLines("HP.txt")
+cat(HP.v, sep = "\n")
+
+HP.v <- Corpus(VectorSource(HP.v))
+HP.v <- HP.v %>%
+  tm_map(content_transformer(removeNumbers)) %>%
+  tm_map(content_transformer(removePunctuation)) %>%
+  tm_map(content_transformer(stripWhitespace)) %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(removeWords, stopwords("english"))
+
+HP.v <- sapply(HP.v, as.character)
+words <- unlist(strsplit(HP.v, " "))
+word_freq <- table(words)
+sorted_word_freq <- sort(word_freq, decreasing = TRUE)
+top_twenty <- head(sorted_word_freq, 20)
+print(top_twenty)
+
+HP.dtm <- DocumentTermMatrix(HP.v)
+tidy_HP <- tidy(HP.dtm)
+tidy_HP <- tidy_HP %>%
+  rename(word = term) %>%
+  rename(total = count) %>%
+  rename(word_count = total) %>%
+  select(-document)
+mean_wf <- mean(tidy_HP$word_count)
+
+# upload transcribed DD using Transkribus for comparison #
+
+DD.v <- Corpus(DirSource("~/Documents/Douglass2024/dataraw/DD"))
+writeLines(as.character(DD.v))
+DD.v <- 
+  tm_map(DD.v, content_transformer(removeNumbers)) %>%
+  tm_map(content_transformer(removePunctuation)) %>%
+  tm_map(content_transformer(stripWhitespace)) %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(content_transformer(removeWords), stopwords("english"))
+DD.dtm <- DocumentTermMatrix(DD.v)
+tidy_DD <- tidy(DD.dtm)
+tidy_DD <- tidy_DD %>%
+  rename(word = term) %>%
+  rename(total = count) %>%
+  rename(word_count = total) %>%
+  select(-document)
+
+# calculate word freqs similarity across both diaries #
+
+frequency <- bind_rows(mutate(tidy_DD, work = "FD.Travel.Diary"),
+                       mutate(tidy_HP, work = "HP.Travel.Diary")) %>%
+  group_by(work, word) %>%
+  summarise(word_count = n()) %>%
+  group_by(work) %>%
+  mutate(proportion = word_count / sum(word_count)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = work, values_from = proportion) %>%
+  pivot_longer(`FD.Travel.Diary`:`HP.Travel.Diary`,
+               names_to = "work", values_to = "proportion")
+# visualise #
+# error - had to simply plot due to 'HP.Travel.Diary' not being found ??? #
+
+ggplot(frequency, aes(x = proportion, y = `HP.Travel.Diary`, 
+                      color = abs(`HP.Travel.Diary` - proportion))) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(alpha = 0.18, size = 1.5, width = 0.5, height = 0.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(low = "darkslategray4", high = "coral") +
+  facet_wrap(~work, ncol = 4) +
+  theme(legend.position="none") +
+  labs(y = "Proportion", x = NULL) +
+  ggtitle("HP - FD Travel Diary (1886) Comparison")
+
+# sentiment analysis, comparative to DD, assigns Quanteda-compatible GI_Dict to corpus #
+
+HP.v <- paste(HP.v, collapse = " ")
+HP.corp <- corpus(HP.v)
+HP.dfm <- dfm(tokens(corp))
+
+result <- dfm_lookup(HP.dfm, dictionary = data_dictionary_LSD2015)
+result <- convert(result, to = "data.frame") %>%
+  as_tibble()
+print(result)
+
+result <- result %>%
+  mutate(length = ntoken(HP.dfm)) %>%
+  mutate(sentiment1 = (positive - negative) / (positive + negative)) %>%
+  mutate(sentiment2 = (positive - negative) / length) %>%
+  mutate(subjectivity = (positive + negative) / length)
+print(result)
+
+install.packages("syuzhet")
+library(syuzhet)
+poa_word_v <- get_tokens(HP.v, pattern = "\\W")
+syuzhet_vector <- get_sentiment(poa_word_v, method = "syuzhet")
+mean(syuzhet_vector)
+summary(syuzhet_vector)
+plot(syuzhet_vector, 
+     type = "h", 
+     main = "Helen Pitts Douglass Diary (1886)", 
+     xlab = "Narrative Time", 
+     ylab = "Emotional Valence"
+) 
+
+```
+
+![**Figure Eight**, Word Freq similarities between HP and DD diaries (1886). The stronger the node's congregation, the greater similarity occurs.](figures/Word Frequencies/HP - FD Word Freq Similarity.png)
+
+![](figures/Emotional Valence/HP Diary - Emotional Valence.png)
+
+**Figure Nine**, Emotional Valence of Helen Pitts Douglass Diary
