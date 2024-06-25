@@ -10,9 +10,13 @@ This chapter demonstrates how Automated Text Recognition (ATR) transcriptions op
 
 This Quarto document, written within R Studio, allows for reproducible and reusable text analysis research of Douglass's autobiography. It showcases the processes taken in importing transcription data; pre-processing text, data exploration, modelling, in addition to reporting findings. To begin, the below *figure one* demonstrates the necessity for ATR approaches to transcription work. The redder the square, the less confident the OCR (Tesseract), a precursor to ATR systems, is in recognising the isolated character. Of course, this remains a guide: as Tesseract can register confidence and still return an incorrect output, and likewise return a less confident result whilst providing more accurate data. Nonetheless, *figure one* highlights a high error rate in using OCR to provide accurate textual data to be interrogated against for historical research. By contrast, our Transkribus model (Late Douglass (1886-1887)) trained on the same travel diary returned a 90.6% character accuracy rate.
 
-![**Figure One**, OCR confidence levels on Douglass travel diary (1886-1887)](figures/OCR Error/DD_TesseractCon.png)
+![**Figure One**, OCR confidence levels on Douglass travel diary (1886-1887)](figures/OCR%20Error/DD_TesseractCon.png)
 
-Each object name in the below code refers to one of Douglass's autobiographical works: NLFD \[Narrative Life of Frederick Douglass\] (1845); MBMF \[My Bondage and My Freedom\] (1855), LTFD \[Life and Times of Frederick Douglass\] (1881), DD \[Douglass Diary\] (1886 - 1887). The first two chronological objects were pulled from Project Gutenberg, LTFD was uploaded as a .rtf file (due to the use of Mac OS), DD was reached through automated transcription using the ATR platform Transkribus and then uploaded as separated .txt files. The resulted DD transcription was later matched against Emerson (2003), a critical scholarly edition. The decision to remain transcribing the original manuscript within Transkribus was taken as to enrich the transcription using named entity recognition (NER), as well as provide the Library of Congress with a searchable resource.
+Each object name in the below code refers to one of Douglass's autobiographical works: NLFD \[Narrative Life of Frederick Douglass\] (1845); MBMF \[My Bondage and My Freedom\] (1855), LTFD \[Life and Times of Frederick Douglass\] (1881), DD \[Douglass Diary\] (1886 - 1887). The first two chronological objects were pulled from Project Gutenberg, LTFD was uploaded as a .rtf file (due to the use of Mac OS), DD was reached through automated transcription using the ATR platform Transkribus and then uploadedget as separated .txt files. The resulted DD transcription was later matched against Emerson (2003), a critical scholarly edition. The decision to remain transcribing the original manuscript within Transkribus was taken as to enrich the transcription using named entity recognition (NER), as well as provide the Library of Congress with a searchable resource.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
 
 ```{r}
 getwd()
@@ -37,7 +41,7 @@ library(tidyverse)
 library(tidytext)
 library(scales)
 library(forcats)
-library(ggplot)
+library(ggplot2)
 library(tm)
 
 # upload biographies and convert to tidytext format, count word instances and take mean usage #
@@ -58,7 +62,7 @@ tidy_MBMF <- MBMF.v %>%
   rename(word_count = n)
 mean_wf <- mean(tidy_MBMF$word_count)
 
-LTFD.v <- readtext("/Users/joenockels/Documents/Douglass2024/dataraw/LTFD.rtf")
+LTFD.v <- readtext("~/Documents/Douglass2024/dataraw/LTFD.rtf")
 tidy_LTFD <- LTFD.v %>%
   unnest_tokens(word, text) 
 data("stop_words")
@@ -86,46 +90,71 @@ DD.v <-
     rename(word_count = total) %>%
     select(-document)
 mean_wf <- mean(tidy_DD$word_count)
-
-# calculate the similarity of word freqs across the range of works #
-
-frequency <- bind_rows(mutate(tidy_NLFD, work = "Narrative Life (1845)"),
-                       mutate(tidy_MBMF, work = "My Bondage (1855)"),
-                       mutate(tidy_LTFD, work = "Life and Times (1881)"),
-                       mutate(tidy_DD, work = "Travel Diary")) %>%
-    group_by(work, word) %>%
-    summarise(count = n()) %>%
-    group_by(work) %>%
-    mutate(proportion = count / sum(count)) %>%
-    ungroup() %>%
-    pivot_wider(names_from = work, values_from = proportion) %>%
-    pivot_longer(`Narrative Life (1845)`:`My Bondage (1855)`:`Life and Times (1881)`,
-                 names_to = "work", values_to = "proportion")
-
-# visualise #
-
-ggplot(frequency, aes(x = proportion, y = `Travel Diary`, 
-                      color = abs(`Travel Diary` - proportion))) +
-  geom_abline(color = "gray40", lty = 2) +
-  geom_jitter(alpha = 0.18, size = 1.5, width = 0.5, height = 0.5) +
-  scale_x_log10(labels = percent_format()) +
-  scale_y_log10(labels = percent_format()) +
-  scale_color_gradient(low = "darkslategray4", high = "coral") +
-  facet_wrap(~work, ncol = 4) +
-  theme(legend.position="none") +
-  labs(y = "Travel Diary (1886-1887)", x = NULL)
-
-# correlate results as a means of verifying figure two, repeat across biography #
-
-# warning - standard deviation is zero ??? #
-
-cor.test(data = frequency[frequency$work == "Narrative Life (1845)",],
-         ~ proportion + `Travel Diary`)
 ```
 
-![](figures/Word%20Frequencies/Douglass_similarity_wf%20(Corrected).jpg)
+# Word Count Frequency
 
-**Figure Two**, Word frequency similarity between Douglass's diary and wider autobiography, the closer each point (word token) appears to the line - the greater the similarity.
+```{r}
+library(reshape2)
+
+# calculate the word count
+frequency <- bind_rows(mutate(tidy_NLFD, work = "Narrative Life (1845)"),
+                        mutate(tidy_MBMF, work = "My Bondage (1855)"),
+                        mutate(tidy_LTFD, work = "Life and Times (1881)"),
+                        mutate(tidy_DD, work = "Travel Diary"))
+frequency <- frequency %>% spread(work, word_count, fill=0)
+
+# calculating the sum of the words
+frequency <- frequency %>% 
+  mutate(sum_word_counts= rowSums(across(c("Narrative Life (1845)", 
+                                           "My Bondage (1855)", 
+                                           "Life and Times (1881)","Travel Diary"))))
+
+# reordering the data by total count of word frequency
+frequency <- frequency %>% arrange(desc(sum_word_counts))
+
+# finding the normalized proportion
+norm_dist <- function(work1, DD, sum) (work1-DD)/sum #normalized distance formula
+norm_frequency <- frequency %>%
+    mutate("Narrative Life (1845)" = norm_dist(frequency$"Narrative Life (1845)", 
+                                               frequency$"Travel Diary", 
+                                               sum_word_counts)) %>%
+    mutate("My Bondage (1855)" = norm_dist(frequency$"My Bondage (1855)", 
+                                           frequency$"Travel Diary", 
+                                           sum_word_counts)) %>%
+    mutate("Life and Times (1881)" = norm_dist(frequency$"Life and Times (1881)", 
+                                               frequency$"Travel Diary", 
+                                               sum_word_counts)) %>%
+    mutate("Travel Diary" = norm_dist(frequency$"Travel Diary", 
+                                      frequency$"Travel Diary", 
+                                      sum_word_counts))
+
+# creating a subset excluding words that have a word frequency less than the cutoff:
+cutoff <- 15
+norm_freq_long <- norm_frequency %>% pivot_longer(cols = -c(word, 
+                                                            sum_word_counts,
+                                                            "Travel Diary"), 
+                                                  names_to = "Works", 
+                                                  values_to = "distance")
+norm_freq_subset <- norm_freq_long[norm_freq_long$sum_word_counts > cutoff,]
+
+# exporting the word frequencies as an csv for viewing
+write.csv(frequency, file="Word_Count_Frequencies.csv")
+write.csv(norm_frequency, file="Word_Count_Norm_Frequencies.csv")
+write.csv(norm_freq_subset, file="Word_Count_Norm_Frequencies_Subset.csv")
+
+# visualizing the data 
+ggplot(norm_freq_subset, aes(x = word)) +
+  geom_point(aes(y= distance, color= Works, group= Works, alpha= .0005)) +
+  geom_point(aes(y= norm_freq_subset$"Travel Diary", color= "Travel Diary")) +
+  facet_wrap(vars(Works)) +
+  guides(alpha = FALSE) +
+  labs(x= "Words", y= "Similarity to Travel Diary") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+```
+
+**Figure Two**, Word frequency similarity between Douglass's diary and wider autobiography, the closer the points (word tokens) are to the baseline, the greater the similarity is to Douglass's diary word count.
 
 ```{r}
 
@@ -269,7 +298,7 @@ douglass_tf_idf %>%
   labs(x = "tf-idf", y = NULL)
 ```
 
-![**Figure Four**, facetted line graph Douglass's word frequency distribution](figures/Word Frequencies/Douglass_wf_distribution.png){fig-alt="Figure Four, facetted line graph showing a similar downward trend of word frequency distribution, suggesting a similar lexical pattern across Douglass's autobiographical writing"}
+![**Figure Four**, facetted line graph Douglass's word frequency distribution](figures/Word%20Frequencies/Douglass_wf_distribution.png){fig-alt="Figure Four, facetted line graph showing a similar downward trend of word frequency distribution, suggesting a similar lexical pattern across Douglass's autobiographical writing"}
 
 ## Word Dispersion
 
@@ -412,6 +441,9 @@ ggplot(data_long, aes(x = Label, y = Value, color = Correlation_Type)) +
 DD corpus separated into bigrams to account for context surrounding the use of religious language, not basing analysis merely on simple word counts.
 
 ```{r}
+library(ggraph)
+library(igraph)
+
 DD <- VCorpus(DirSource("~/Documents/Douglass2024/dataraw/DD"))
 
 DD <- DD %>%
@@ -739,8 +771,8 @@ plot(syuzhet_vector,
 
 ```
 
-![**Figure Eight**, Word Freq similarities between HP and DD diaries (1886). The stronger the node's congregation, the greater similarity occurs.](figures/Word Frequencies/HP - FD Word Freq Similarity.png)
+![**Figure Eight**, Word Freq similarities between HP and DD diaries (1886). The stronger the node's congregation, the greater similarity occurs.](figures/Word%20Frequencies/HP%20-%20FD%20Word%20Freq%20Similarity.png)
 
-![](figures/Emotional Valence/HP Diary - Emotional Valence.png)
+![](figures/Emotional%20Valence/HP%20Diary%20-%20Emotional%20Valence.png)
 
 **Figure Nine**, Emotional Valence of Helen Pitts Douglass Diary

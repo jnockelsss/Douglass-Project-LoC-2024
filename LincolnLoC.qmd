@@ -1,0 +1,74 @@
+---
+title: "LincolnLoC"
+format: pdf
+editor: visual
+---
+
+## Text Analysis of Lincoln Speeches and Correspondences (1843-1858) and (1863-1865)
+
+The following Quarto document conducts an analysis on the word frequency and lexical diversity of Lincoln's speeches and correspondences approximately around Frederick Douglass's autobiographies *Narrative Life of Frederick Douglass* (1845) and *My Bondage and My Freedom* (1855), as well as the time around the Emancipation Proclamation and end of life.
+
+The text file for this project was pulled from Project Gutenburg's eBook "The Papers and Writing of Abraham Lincoln" and uses two specific volumes: Volume 2 (1843-1858) and Volume 7 (1863-1865).
+
+The Papers and Writings of Abraham Lincoln, Volume 2 was released on Project Gutenberg as eBook #2654. The Papers and Writings of Abraham Lincoln, Volume 7 was released as eBook #2659. Both volumes were released in September 30, 2004 and were used as the version released in October 29, 2012.
+
+## Calculating Word Frequencies of "The Papers and Writing of Abraham Lincoln"
+
+The word frequency of Abraham Lincoln's writings will be tested to Douglass's first two biographies ("Narrative Life of Frederick Douglass" (1845) and "My Bondage and My Freedom" (1855)). Since "Life and Times of Frederick Douglass" (1881) and Douglass's travel diary (1886-1887) were written after Lincoln's death, these works are not considered.
+
+```{r}
+library(gutenbergr)
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+
+# retrieving the documents from project gutenberg
+PWAL2.v <- gutenberg_download(2654)
+tidy_PWAL2 <- PWAL2.v %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  rename(word_count = n)
+mean_wf <- mean(tidy_PWAL2$word_count)
+
+PWAL7.v <- gutenberg_download(2659)
+tidy_PWAL7 <- PWAL7.v %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  rename(word_count = n)
+mean_wf <- mean(tidy_PWAL2$word_count)
+```
+
+```{r}
+# counting the word frequencies from Abraham Lincoln's writings
+frequency <- bind_rows(mutate(tidy_PWAL2, work="Volume 2 (1843-1858)"),
+                       mutate(tidy_PWAL7, work="Volume 7 (1863-1865)"))
+frequency <- frequency %>% spread(work, word_count, fill=0)
+
+# loading the files for Douglass's word frequencies
+frequencyFD <- read_csv("Word_Count_Frequencies.csv", show_col_types = FALSE)
+frequencyFD <- select(frequencyFD,word, "My Bondage (1855)", "Narrative Life (1845)")
+
+# combining the two frequencies to better compare works
+frequency <- merge.data.frame(frequency, frequencyFD, by = "word")
+
+# calculating the sum of the words
+frequency <- frequency %>% 
+  mutate(sum_word_counts= rowSums(across(c("Volume 2 (1843-1858)", "Volume 7 (1863-1865)"))))
+         
+# reordering the data by total count of word frequency
+frequency <- frequency %>% arrange(desc(sum_word_counts))
+```
+
+# Analysis of Word Frequency of Lincoln to Douglass's works
+
+
+
+```{r}
+# analysis of the word frequencies
+
+
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
