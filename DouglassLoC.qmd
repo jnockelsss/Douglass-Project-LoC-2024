@@ -46,7 +46,7 @@ library(tm)
 
 # upload biographies and convert to tidytext format, count word instances and take mean usage #
 
-NLFD.v <- gutenberg_download(23)
+NLFD.v <- gutenberg_download(23, mirror = "http://mirrors.xmission.com/gutenberg/")
 tidy_NLFD <- NLFD.v %>%
   unnest_tokens(word, text) %>%
   anti_join(stop_words) %>%
@@ -54,7 +54,7 @@ tidy_NLFD <- NLFD.v %>%
   rename(word_count = n)
 mean_wf <- mean(tidy_NLFD$word_count)
   
-MBMF.v <- gutenberg_download(202)
+MBMF.v <- gutenberg_download(202, mirror = "http://mirrors.xmission.com/gutenberg/")
 tidy_MBMF <- MBMF.v %>%
   unnest_tokens(word, text) %>%
   anti_join(stop_words) %>%
@@ -62,20 +62,48 @@ tidy_MBMF <- MBMF.v %>%
   rename(word_count = n)
 mean_wf <- mean(tidy_MBMF$word_count)
 
-LTFD.v <- readtext("~/Documents/Douglass2024/dataraw/LTFD.rtf")
-tidy_LTFD <- LTFD.v %>%
-  unnest_tokens(word, text) 
-data("stop_words")
-tidy_LTFD <- anti_join(tidy_LTFD, stop_words)
-tidy_LTFD <- tidy_LTFD %>% 
-  count(word, sort = TRUE) %>%
-  rename(word_count = n)
+# changing the version of Life and Times used out of curiosity:
+#LTFD.v <- gutenberg_download(71893, mirror = "rsync://gutenberg.pglaf.org/gutenberg")
+#tidy_LTFD <- LTFD.v %>%
+#  unnest_tokens(word, text) %>%
+#  anti_join(stop_words) %>%
+#  count(word, sort = TRUE) %>%
+#  rename(word_count = n)
+#mean_wf <- mean(tidy_LTFD$word_count)
+
+# .txt file version:
+LTFD.v <- Corpus(DirSource("~/Documents/Douglass2024/dataraw//LTFD"))
+#writeLines(as.character(DD.v))
+LTFD.v <- 
+  tm_map(LTFD.v, content_transformer(removeNumbers)) %>%
+  tm_map(content_transformer(removePunctuation)) %>%
+  tm_map(content_transformer(stripWhitespace)) %>%
+  tm_map(content_transformer(tolower)) %>%
+  tm_map(content_transformer(removeWords), stopwords("english"))
+  LTFD.dtm <- DocumentTermMatrix(LTFD.v)
+  tidy_LTFD <- tidy(LTFD.dtm)
+  tidy_LTFD <- tidy_LTFD %>%
+    rename(word = term) %>%
+    rename(total = count) %>%
+    rename(word_count = total) %>%
+    select(-document)
 mean_wf <- mean(tidy_LTFD$word_count)
+
+# original version
+#LTFD.v <- readtext("~/Documents/Douglass2024/dataraw/LTFD.rtf")
+#tidy_LTFD <- LTFD.v %>%
+#  unnest_tokens(word, text) 
+#data("stop_words")
+#tidy_LTFD <- anti_join(tidy_LTFD, stop_words)
+#tidy_LTFD <- tidy_LTFD %>% 
+#  count(word, sort = TRUE) %>%
+#  rename(word_count = n)
+#mean_wf <- mean(tidy_LTFD$word_count)
 
 # upload Douglass's diary and pre-process in tm() package #
 
 DD.v <- Corpus(DirSource("~/Documents/Douglass2024/dataraw/DD"))
-writeLines(as.character(DD.v))
+#writeLines(as.character(DD.v))
 DD.v <- 
   tm_map(DD.v, content_transformer(removeNumbers)) %>%
   tm_map(content_transformer(removePunctuation)) %>%
@@ -138,6 +166,9 @@ norm_freq_long <- norm_frequency %>% pivot_longer(cols = -c(word,
                                                   values_to = "distance")
 norm_freq_subset <- norm_freq_long[norm_freq_long$sum_word_counts > cutoff,]
 
+# finding out which of the works has the highest number of exclusive words compared to DD
+neg_one_subset <- norm_freq_subset[norm_freq_subset$distance > .90,]
+
 # exporting the word frequencies as an csv for viewing
 write.csv(frequency, file="Word_Count_Frequencies.csv")
 write.csv(norm_frequency, file="Word_Count_Norm_Frequencies.csv")
@@ -152,12 +183,12 @@ ggplot(norm_freq_subset, aes(x = word)) +
   labs(x= "Words", y= "Similarity to Travel Diary") +
   theme(axis.text.x = element_blank(),
         axis.ticks.x = element_blank())
+
 ```
 
 **Figure Two**, Word frequency similarity between Douglass's diary and wider autobiography, the closer the points (word tokens) are to the baseline, the greater the similarity is to Douglass's diary word count.
 
 ```{r}
-
 # hapax correlation #
 
 # calculate length of each biography #
@@ -167,10 +198,18 @@ total_words <- function(text) {
   return(length(words))
 }
 
+LTFD.v <- as.character(LTFD.v) #Accounting for the large size of LTFD
+
 total_words_NLFD <- sum(sapply(NLFD.v$text, total_words))
 total_words_MBMF <- sum(sapply(MBMF.v$text, total_words))
-total_words_LTFD <- sum(sapply(LTFD.v$text, total_words))
+total_words_LTFD <- sum(sapply(LTFD.v, total_words))
 total_words_DD <- sum(sapply(DD.v, total_words))
+
+# calculate hapax across all works and then also gives the sum and percentage of hapax words in all works
+
+hapax_words <- frequency[frequency$sum_word_counts == 1,]
+hapax_sum <- colSums(hapax_words[,!names(hapax_words) %in% c('word')]) #returns LTFD, MBMF, NLFD, sum_words
+hapax_percentage_all <- unname(hapax_sum)/(total_words_DD+total_words_LTFD+total_words_MBMF+total_words_NLFD)
 
 # calculate hapax across autobiography, instances where words appear only once #
 
@@ -185,6 +224,9 @@ douglass.hapax.v <- as.numeric(douglass.hapax.v)
 douglass.book.lengths.l <- as.numeric(douglass.book.lengths.l)
 
 hapax.percentage <- douglass.hapax.v / douglass.book.lengths.l * 100
+
+# looking at the correlation between hapax percentage and work
+hapax_cor_words <- cor(hapax.percentage, douglass.book.lengths.l)
 
 # visualise hapax percentage #
 
@@ -298,7 +340,7 @@ douglass_tf_idf %>%
   labs(x = "tf-idf", y = NULL)
 ```
 
-![**Figure Four**, facetted line graph Douglass's word frequency distribution](figures/Word%20Frequencies/Douglass_wf_distribution.png){fig-alt="Figure Four, facetted line graph showing a similar downward trend of word frequency distribution, suggesting a similar lexical pattern across Douglass's autobiographical writing"}
+![**Figure Four (Unused)**, facetted line graph Douglass's word frequency distribution](figures/Word%20Frequencies/Douglass_wf_distribution.png){fig-alt="Figure Four, facetted line graph showing a similar downward trend of word frequency distribution, suggesting a similar lexical pattern across Douglass's autobiographical writing"}
 
 ## Word Dispersion
 
