@@ -7,7 +7,7 @@ can open up scholarship through text analysis techniques. The abolitionist and s
 especially his travel diary (1886-1894) (https://www.loc.gov/collections/frederick-douglass-papers/?fa=partof:frederick+douglass+papers:+diary,+1886-1894)
 which forms part of the Frederick Douglass Papers at the Library of Congress. The resulting output is a paper entitled: 
 
-"Leveraging Accurate and Accessible Texts at the Library of Congress. A Study of Frederick Douglass’s Travel Writing (1845 - 1895)"
+"Deepening Autobiographical Research of Frederick Douglass (1818 - 1895): A Case of Automated Transcription and Textual Analysis at the Library of Congress"
 
 # Workflow
 
