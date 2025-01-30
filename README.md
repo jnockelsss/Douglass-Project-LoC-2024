@@ -2,12 +2,17 @@
 
 # Project Description
 
-We aim to display how Automated Text Recognition (ATR) datasets, once made accessible and accurate,
-can open up scholarship through text analysis techniques. The abolitionist and social reformer Frederick Douglass (1818-1895) is used as a case study, 
-especially his travel diary (1886-1894) (https://www.loc.gov/collections/frederick-douglass-papers/?fa=partof:frederick+douglass+papers:+diary,+1886-1894)
-which forms part of the Frederick Douglass Papers at the Library of Congress. The resulting output is a paper entitled: 
+This project utilises Automated Text Recognition (ATR) datasets, once made accessible and accurate, for text analysis techniques using R. The autobiographical 
+works of abolitionist and social reformer Frederick Douglass (1818-1895) is used as a case study,  especially his travel diary (1886-1894) (https://www.loc.gov/collections/frederick-douglass-papers/?fa=partof:frederick+douglass+papers:+diary,+1886-1894) which forms part of the Frederick Douglass Papers at the Library of Congress. 
 
-"Deepening Autobiographical Research of Frederick Douglass (1818 - 1895): A Case of Automated Transcription and Textual Analysis at the Library of Congress"
+# Technologies Used
+
+- Transkribus for computer-readable text generation
+- R, within R Studio, for text analysis and data visualisation
+
+# Prequisites 
+
+- R Studio setup 
 
 # Workflow
 
@@ -38,4 +43,4 @@ automation for historical research on text-based library collections.
 Much of this work is informed by Julia Silge and David Robinson, *Text Mining with R* (https://www.tidytextmining.com), as well tutorials by Greg Martin 
 (https://www.youtube.com/@RProgramming101) and Kasper Welbers (https://www.youtube.com/@kasperwelbers). 
 
-We also acknowledge the contributions of Dr Jess Witte, University of Edinburgh, Centre for Data, Culture and Society (CDCS) (jessica.witte@ed.ac.uk) for troubleshooting R when needed. 
+We also acknowledge the contributions of Dr Jess Witte, University of Edinburgh, Centre for Data, Culture and Society (CDCS) (jessica.witte@ed.ac.uk) for troubleshooting.
